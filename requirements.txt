@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+motor
+sqlalchemy
+alembic
+passlib[bcrypt]
+python-multipart
