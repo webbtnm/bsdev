@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from bson import ObjectId
-from ..db.mongo import db
-from .fastapi_auth import get_current_user
+from db.mongo import db
+from server.fastapi_auth import get_current_user
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter()
