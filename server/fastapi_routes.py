@@ -134,7 +134,14 @@ async def login_user(user: UserCreate):
     found_user = await db.users.find_one({"username": user.username})
     if not found_user or not pwd_context.verify(user.password, found_user["password"]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    return {"message": "Login successful", "user": {"id": str(found_user["_id"]), **found_user}}
+    return {
+        "message": "Login successful",
+        "user": {
+            "id": str(found_user["_id"]),
+            "username": found_user["username"],
+            "telegram_contact": found_user.get("telegram_contact")
+        }
+    }
 
 @router.get("/api/user/books")
 async def get_user_books(current_user: dict = Depends(get_current_user)):
