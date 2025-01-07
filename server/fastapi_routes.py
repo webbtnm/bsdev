@@ -3,7 +3,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from bson import ObjectId
 from db.mongo import db
-from server.fastapi_auth import get_current_user
+from server.fastapi_auth import get_current_user, oauth2_scheme
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter()
@@ -111,7 +111,7 @@ async def update_user_profile(profile: UserProfileUpdate, current_user: dict = D
         raise HTTPException(status_code=404, detail="User not found.")
     return {"message": "Profile updated"}
 
-@router.get("/api/user/profile", response_model=UserOut)
+@router.get("/api/user/profile", response_model=UserOut, dependencies=[Depends(oauth2_scheme)])
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     return {
         "id": str(current_user["_id"]),

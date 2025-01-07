@@ -1,12 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import APIRouter, Depends, HTTPException, FastAPI
+from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel, OAuthFlowPassword
+from fastapi.security import OAuth2, OAuth2PasswordBearer
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from db.mongo import db
 
+app = FastAPI()
+
 router = APIRouter()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class OAuth2PasswordBearerWithCookie(OAuth2):
+    def __init__(self, tokenUrl: str, scheme_name: str = None, scopes: dict = None, auto_error: bool = True):
+        if not scopes:
+            scopes = {}
+        flows = OAuthFlowsModel(password=OAuthFlowPassword(tokenUrl=tokenUrl, scopes=scopes))
+        super().__init__(flows=flows, scheme_name=scheme_name, auto_error=auto_error)
+
+oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="/api/token")
 
 class UserCreate(BaseModel):
     username: str
@@ -48,3 +59,5 @@ async def logout_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     await db.users.update_one({"_id": user["_id"]}, {"$unset": {"token": ""}})
     return {"message": "Logout successful"}
+
+app.include_router(router)
