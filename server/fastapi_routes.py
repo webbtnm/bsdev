@@ -3,7 +3,8 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from bson import ObjectId
 from db.mongo import db
-from server.fastapi_auth import get_current_user, oauth2_scheme
+from server.fastapi_auth import get_current_user, oauth2_scheme, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from datetime import timedelta
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter()
@@ -147,8 +148,12 @@ async def login_user(user: UserCreate):
     found_user = await db.users.find_one({"username": user.username})
     if not found_user or not pwd_context.verify(user.password, found_user["password"]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
+    time_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token({"sub": str(found_user["_id"])}, expires_delta=time_expires)
     return {
         "message": "Login successful",
+        "access_token": access_token,
+        "token_type": "bearer",
         "user": {
             "id": str(found_user["_id"]),
             "username": found_user["username"],
