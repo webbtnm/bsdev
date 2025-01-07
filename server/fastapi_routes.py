@@ -68,7 +68,13 @@ async def get_shelf(shelf_id: str, current_user: dict = Depends(get_current_user
         raise HTTPException(status_code=404, detail="Shelf not found.")
     if not shelf["public"] and shelf["ownerId"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
-    return shelf
+    return {
+        "id": str(shelf["_id"]),
+        "name": shelf["name"],
+        "description": shelf.get("description", ""),
+        "public": shelf["public"],
+        "ownerId": str(shelf["ownerId"])
+    }
 
 @router.post("/api/shelves/{shelf_id}/members")
 async def add_shelf_member(shelf_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
@@ -89,7 +95,7 @@ async def get_shelf_members(shelf_id: str, current_user: dict = Depends(get_curr
     if not shelf["public"] and shelf["ownerId"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
     members = await db.shelf_members.find({"shelfId": ObjectId(shelf_id)}).to_list(length=None)
-    return members
+    return [{"id": str(member["_id"]), "shelfId": str(member["shelfId"]), "userId": str(member["userId"])} for member in members]
 
 @router.delete("/api/shelves/{shelf_id}/members/{member_id}")
 async def delete_shelf_member(shelf_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
@@ -127,7 +133,14 @@ async def register_user(user: UserCreate):
     hashed_password = pwd_context.hash(user.password)
     new_user = {"username": user.username, "password": hashed_password, "telegram_contact": user.telegram_contact}
     result = await db.users.insert_one(new_user)
-    return {"message": "Registration successful", "user": {"id": str(result.inserted_id), **new_user}}
+    return {
+        "message": "Registration successful",
+        "user": {
+            "id": str(result.inserted_id),
+            "username": new_user["username"],
+            "telegram_contact": new_user.get("telegram_contact")
+        }
+    }
 
 @router.post("/api/login")
 async def login_user(user: UserCreate):
