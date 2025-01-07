@@ -4,5 +4,6 @@ motor
 sqlalchemy
 alembic
 passlib[bcrypt]
+bcrypt==3.2.0  # Specify a compatible version of bcrypt
 python-multipart
 python-dotenv
