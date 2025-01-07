@@ -43,7 +43,14 @@ async def register_user(user: UserCreate):
     hashed_password = pwd_context.hash(user.password)
     new_user = {"username": user.username, "password": hashed_password, "telegram_contact": user.telegram_contact}
     result = await db.users.insert_one(new_user)
-    return {"message": "Registration successful", "user": {"id": str(result.inserted_id), **new_user}}
+    return {
+        "message": "Registration successful",
+        "user": {
+            "id": str(result.inserted_id),
+            "username": new_user["username"],
+            "telegram_contact": new_user.get("telegram_contact")
+        }
+    }
 
 @router.post("/api/login")
 async def login_user(user: UserCreate):
