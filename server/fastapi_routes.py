@@ -91,6 +91,18 @@ async def get_shelf_members(shelf_id: str, current_user: dict = Depends(get_curr
     members = await db.shelf_members.find({"shelfId": ObjectId(shelf_id)}).to_list(length=None)
     return members
 
+@router.delete("/api/shelves/{shelf_id}/members/{member_id}")
+async def delete_shelf_member(shelf_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
+    shelf = await db.shelves.find_one({"_id": ObjectId(shelf_id)})
+    if not shelf:
+        raise HTTPException(status_code=404, detail="Shelf not found.")
+    if shelf["ownerId"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    result = await db.shelf_members.delete_one({"shelfId": ObjectId(shelf_id), "userId": ObjectId(member_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Member not found.")
+    return {"message": "Member deleted"}
+
 @router.patch("/api/user/profile")
 async def update_user_profile(profile: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     update_data = {k: v for k, v in profile.dict().items() if v is not None}
@@ -98,6 +110,14 @@ async def update_user_profile(profile: UserProfileUpdate, current_user: dict = D
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="User not found.")
     return {"message": "Profile updated"}
+
+@router.get("/api/user/profile", response_model=UserOut)
+async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    return {
+        "id": str(current_user["_id"]),
+        "username": current_user["username"],
+        "telegram_contact": current_user.get("telegram_contact")
+    }
 
 @router.post("/api/register")
 async def register_user(user: UserCreate):
@@ -115,3 +135,27 @@ async def login_user(user: UserCreate):
     if not found_user or not pwd_context.verify(user.password, found_user["password"]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     return {"message": "Login successful", "user": {"id": str(found_user["_id"]), **found_user}}
+
+@router.get("/api/user/books")
+async def get_user_books(current_user: dict = Depends(get_current_user)):
+    books_list = []
+    async for b in db.books.find({"ownerId": current_user["id"]}):
+        books_list.append({
+            "id": str(b["_id"]),
+            "title": b["title"],
+            "author": b["author"],
+            "description": b.get("description", "")
+        })
+    return books_list
+
+@router.get("/api/user/shelves")
+async def get_user_shelves(current_user: dict = Depends(get_current_user)):
+    shelves_list = []
+    async for s in db.shelves.find({"ownerId": current_user["id"]}):
+        shelves_list.append({
+            "id": str(s["_id"]),
+            "name": s["name"],
+            "description": s.get("description", ""),
+            "public": s["public"]
+        })
+    return shelves_list

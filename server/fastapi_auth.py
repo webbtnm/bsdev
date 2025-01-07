@@ -40,3 +40,11 @@ async def login_user(user: UserCreate):
     if not found_user or not pwd_context.verify(user.password, found_user["password"]):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     return {"message": "Login successful", "user": {"id": str(found_user["_id"]), **found_user}}
+
+@router.post("/api/logout")
+async def logout_user(token: str = Depends(oauth2_scheme)):
+    user = await db.users.find_one({"token": token})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    await db.users.update_one({"_id": user["_id"]}, {"$unset": {"token": ""}})
+    return {"message": "Logout successful"}
