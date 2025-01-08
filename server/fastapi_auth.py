@@ -99,7 +99,13 @@ async def login_user(user: UserCreate):
             }
         }
     )
-    response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
+    response.set_cookie(
+        key="Authorization",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        samesite="none",
+        secure=False  # set to True if using HTTPS
+    )
     return response
 
 @router.post("/api/token")
