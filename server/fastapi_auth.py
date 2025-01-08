@@ -15,7 +15,7 @@ app = FastAPI()
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = "your_secret_key"
+SECRET_KEY = "your_secret_key"  # Ensure this is properly set
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -51,6 +51,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         user = await db.users.find_one({"_id": ObjectId(user_id)})
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        logging.info(f"User found: {user}")
         return user
     except JWTError as e:
         logging.error(f"JWTError: {e}")
