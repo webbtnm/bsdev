@@ -99,13 +99,7 @@ async def login_user(user: UserCreate):
             }
         }
     )
-    response.set_cookie(
-        key="Authorization",
-        value=f"Bearer {access_token}",
-        httponly=True,
-        samesite="none",
-        secure=False  # set to True if using HTTPS
-    )
+    response.headers["Authorization"] = f"Bearer {access_token}"
     return response
 
 @router.post("/api/token")
@@ -130,7 +124,7 @@ async def token_endpoint(user: UserCreate):
             }
         }
     )
-    response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
+    response.headers["Authorization"] = f"Bearer {access_token}"
     return response
 
 @router.post("/api/logout")
