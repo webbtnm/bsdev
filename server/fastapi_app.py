@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from server.fastapi_routes import router as routes_router
-from server.fastapi_auth import oauth2_scheme
+from server.fastapi_auth import router as auth_router  # Add this import
 
 app = FastAPI()
 
@@ -23,5 +23,6 @@ def root_route():
 
 # attach routers
 app.include_router(routes_router)
+app.include_router(auth_router)  # Include auth router so /api/token and others are available
 
 # you'd run it with: uvicorn server.fastapi_app:app --reload

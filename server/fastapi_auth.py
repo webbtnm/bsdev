@@ -102,6 +102,31 @@ async def login_user(user: UserCreate):
     response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
     return response
 
+@router.post("/api/token")
+async def token_endpoint(user: UserCreate):
+    found_user = await db.users.find_one({"username": user.username})
+    if not found_user or not pwd_context.verify(user.password, found_user["password"]):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(found_user["_id"])}, expires_delta=access_token_expires
+    )
+    await db.users.update_one({"_id": found_user["_id"]}, {"$set": {"token": access_token}})
+    response = JSONResponse(
+        content={
+            "message": "Token endpoint successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(found_user["_id"]),
+                "username": found_user["username"],
+                "telegram_contact": found_user.get("telegram_contact")
+            }
+        }
+    )
+    response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
+    return response
+
 @router.post("/api/logout")
 async def logout_user(token: str = Depends(oauth2_scheme)):
     user = await db.users.find_one({"token": token})
