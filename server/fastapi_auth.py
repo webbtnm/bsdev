@@ -8,6 +8,7 @@ from datetime import timedelta, datetime
 from jose import JWTError, jwt
 from bson import ObjectId
 from fastapi.responses import JSONResponse
+import logging
 
 app = FastAPI()
 
@@ -38,8 +39,10 @@ class UserOut(BaseModel):
     telegram_contact: str | None
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    logging.info(f"Token received: {token}")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logging.info(f"Payload decoded: {payload}")
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -47,7 +50,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
         return user
-    except JWTError:
+    except JWTError as e:
+        logging.error(f"JWTError: {e}")
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
