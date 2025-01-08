@@ -6,6 +6,7 @@ from passlib.context import CryptContext
 from db.mongo import db
 from datetime import timedelta, datetime
 from jose import JWTError, jwt
+from bson import ObjectId
 
 app = FastAPI()
 
@@ -36,10 +37,17 @@ class UserOut(BaseModel):
     telegram_contact: str | None
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
-    user = await db.users.find_one({"token": token})
-    if not user:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+        if user is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        return user
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    return user
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -77,6 +85,7 @@ async def login_user(user: UserCreate):
     access_token = create_access_token(
         data={"sub": str(found_user["_id"])}, expires_delta=access_token_expires
     )
+    await db.users.update_one({"_id": found_user["_id"]}, {"$set": {"token": access_token}})
     return {
         "message": "Login successful",
         "access_token": access_token,

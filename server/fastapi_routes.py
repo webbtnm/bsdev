@@ -128,38 +128,11 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
 
 @router.post("/api/register")
 async def register_user(user: UserCreate):
-    existing_user = await db.users.find_one({"username": user.username})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    hashed_password = pwd_context.hash(user.password)
-    new_user = {"username": user.username, "password": hashed_password, "telegram_contact": user.telegram_contact}
-    result = await db.users.insert_one(new_user)
-    return {
-        "message": "Registration successful",
-        "user": {
-            "id": str(result.inserted_id),
-            "username": new_user["username"],
-            "telegram_contact": new_user.get("telegram_contact")
-        }
-    }
+    raise HTTPException(status_code=400, detail="Use /api/register from fastapi_auth")
 
 @router.post("/api/login")
 async def login_user(user: UserCreate):
-    found_user = await db.users.find_one({"username": user.username})
-    if not found_user or not pwd_context.verify(user.password, found_user["password"]):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    time_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token({"sub": str(found_user["_id"])}, expires_delta=time_expires)
-    return {
-        "message": "Login successful",
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": str(found_user["_id"]),
-            "username": found_user["username"],
-            "telegram_contact": found_user.get("telegram_contact")
-        }
-    }
+    raise HTTPException(status_code=400, detail="Use /api/login from fastapi_auth")
 
 @router.get("/api/user/books")
 async def get_user_books(current_user: dict = Depends(get_current_user)):
