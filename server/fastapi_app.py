@@ -24,6 +24,10 @@ class CookieToHeaderMiddleware(BaseHTTPMiddleware):
         token = request.cookies.get("Authorization")
         if token:
             logging.info(f"Token from cookie: {token}")
+            # Ensure the token is correctly formatted as "Bearer <token>"
+            if not token.startswith("Bearer "):
+                token = f"Bearer {token}"
+            logging.info(f"Token to be added to header: {token}")
             # Inject the cookie value as an 'Authorization' header
             request.headers.__dict__["_list"].append(
                 (b"authorization", token.encode())

@@ -41,6 +41,8 @@ class UserOut(BaseModel):
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     logging.info(f"Token received: {token}")
     try:
+        # Remove "Bearer " prefix before decoding
+        token = token.replace("Bearer ", "")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         logging.info(f"Payload decoded: {payload}")
         user_id: str = payload.get("sub")
