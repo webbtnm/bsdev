@@ -7,6 +7,7 @@ from db.mongo import db
 from datetime import timedelta, datetime
 from jose import JWTError, jwt
 from bson import ObjectId
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -86,16 +87,20 @@ async def login_user(user: UserCreate):
         data={"sub": str(found_user["_id"])}, expires_delta=access_token_expires
     )
     await db.users.update_one({"_id": found_user["_id"]}, {"$set": {"token": access_token}})
-    return {
-        "message": "Login successful",
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": str(found_user["_id"]),
-            "username": found_user["username"],
-            "telegram_contact": found_user.get("telegram_contact")
+    response = JSONResponse(
+        content={
+            "message": "Login successful",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(found_user["_id"]),
+                "username": found_user["username"],
+                "telegram_contact": found_user.get("telegram_contact")
+            }
         }
-    }
+    )
+    response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
+    return response
 
 @router.post("/api/logout")
 async def logout_user(token: str = Depends(oauth2_scheme)):

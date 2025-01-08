@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from bson import ObjectId
@@ -118,21 +118,21 @@ async def update_user_profile(profile: UserProfileUpdate, current_user: dict = D
         raise HTTPException(status_code=404, detail="User not found.")
     return {"message": "Profile updated"}
 
-@router.get("/api/user/profile", response_model=UserOut, dependencies=[Depends(oauth2_scheme)])
-async def get_user_profile(current_user: dict = Depends(get_current_user)):
+@router.get("/api/user/profile", response_model=UserOut)
+async def get_user_profile(request: Request, current_user: dict = Depends(get_current_user)):
+    token = request.cookies.get("Authorization")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     return {
         "id": str(current_user["_id"]),
         "username": current_user["username"],
         "telegram_contact": current_user.get("telegram_contact")
     }
 
-@router.post("/api/register")
-async def register_user(user: UserCreate):
-    raise HTTPException(status_code=400, detail="Use /api/register from fastapi_auth")
-
-@router.post("/api/login")
-async def login_user(user: UserCreate):
-    raise HTTPException(status_code=400, detail="Use /api/login from fastapi_auth")
+# Remove or comment out these lines:
+# @router.post("/api/register")
+# async def register_user(user: UserCreate):
+#     raise HTTPException(status_code=400, detail="Use /api/register from fastapi_auth")
 
 @router.get("/api/user/books")
 async def get_user_books(current_user: dict = Depends(get_current_user)):
