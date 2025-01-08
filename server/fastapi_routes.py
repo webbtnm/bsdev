@@ -40,6 +40,7 @@ async def get_books():
     async for b in db.books.find():
         books_list.append({
             "id": str(b["_id"]),
+            "ownerId": str(b["ownerId"]) if "ownerId" in b else None,
             "title": b["title"],
             "author": b["author"],
             "description": b.get("description", "")
@@ -47,9 +48,12 @@ async def get_books():
     return books_list
 
 @router.post("/api/books")
-async def create_book(book: Book):
-    result = await db.books.insert_one(book.dict())
-    return {"id": str(result.inserted_id), **book.dict()}
+async def create_book(book: Book, current_user: dict = Depends(get_current_user)):
+    if "_id" not in current_user:
+        raise HTTPException(status_code=400, detail="Invalid user data.")
+    new_book = {**book.dict(), "ownerId": current_user["_id"]}
+    result = await db.books.insert_one(new_book)
+    return {"id": str(result.inserted_id), **new_book}
 
 @router.delete("/api/books/{book_id}")
 async def delete_book(book_id: str):
