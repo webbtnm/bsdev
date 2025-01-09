@@ -138,11 +138,10 @@ async def update_user_profile(profile: UserProfileUpdate, current_user: dict = D
 
 @router.get("/api/user/profile", response_model=UserOut)
 async def get_user_profile(request: Request, current_user: dict = Depends(get_current_user)):
+
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-    token = request.cookies.get("Authorization")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+
     return {
         "id": str(current_user["_id"]),
         "username": current_user["username"],

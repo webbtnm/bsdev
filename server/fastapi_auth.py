@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, FastAPI
+from fastapi import APIRouter, Depends, HTTPException, FastAPI, Request
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel, OAuthFlowPassword
 from fastapi.security import OAuth2, OAuth2PasswordBearer
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from jose import JWTError, jwt
 from bson import ObjectId
 from fastapi.responses import JSONResponse
 import logging
+
 
 app = FastAPI()
 
@@ -38,8 +39,11 @@ class UserOut(BaseModel):
     username: str
     telegram_contact: str | None
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
     logging.info(f"Token received: {token}")
+    if not token or not token.startswith("Bearer "):
+               raise HTTPException(status_code=401, detail={"token": token})
     try:
         # Remove "Bearer " prefix before decoding
         token = token.replace("Bearer ", "")
@@ -97,8 +101,6 @@ async def login_user(user: UserCreate):
     response = JSONResponse(
         content={
             "message": "Login successful",
-            "access_token": access_token,
-            "token_type": "bearer",
             "user": {
                 "id": str(found_user["_id"]),
                 "username": found_user["username"],
@@ -106,7 +108,14 @@ async def login_user(user: UserCreate):
             }
         }
     )
-    response.headers["Authorization"] = f"Bearer {access_token}"
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="strict",
+        secure=True
+    )
     return response
 
 @router.post("/api/token")
@@ -122,8 +131,6 @@ async def token_endpoint(user: UserCreate):
     response = JSONResponse(
         content={
             "message": "Token endpoint successful",
-            "access_token": access_token,
-            "token_type": "bearer",
             "user": {
                 "id": str(found_user["_id"]),
                 "username": found_user["username"],
@@ -131,7 +138,14 @@ async def token_endpoint(user: UserCreate):
             }
         }
     )
-    response.headers["Authorization"] = f"Bearer {access_token}"
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="strict",
+        secure=True
+    )
     return response
 
 @router.post("/api/logout")
