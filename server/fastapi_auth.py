@@ -149,11 +149,11 @@ async def token_endpoint(user: UserCreate):
     return response
 
 @router.post("/api/logout")
-async def logout_user(token: str = Depends(oauth2_scheme)):
-    user = await db.users.find_one({"token": token})
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
-    await db.users.update_one({"_id": user["_id"]}, {"$unset": {"token": ""}})
-    return {"message": "Logout successful"}
+async def logout_user(request: Request, current_user: dict = Depends(get_current_user)):
+    await db.users.update_one({"_id": current_user["_id"]}, {"$unset": {"token": ""}})
+    response = JSONResponse(content={"message": "Logout successful"})
+
+    response.delete_cookie("access_token")
+    return response
 
 app.include_router(router)
