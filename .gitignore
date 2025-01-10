@@ -25,3 +25,6 @@ Thumbs.db
 *.sln
 
 **/__pycache__/
+
+# Ignore cursorignore file
+.cursorignore
