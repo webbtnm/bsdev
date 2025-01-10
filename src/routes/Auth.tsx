@@ -7,12 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { useNavigate } from "react-router";
-
-type AuthFormData = {
-    username: string;
-    password: string;
-    telegram_contact?: string;
-};
+import type { AuthFormData } from "@/types.ts";
 
 export default function AuthPage() {
     const navigate = useNavigate();
