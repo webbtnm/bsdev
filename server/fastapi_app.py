@@ -22,7 +22,7 @@ app.add_middleware(
 
 @app.get("/")
 def root_route():
-    return {"message": "FastAPI MongoDB API"}
+    return {"message": "FastAPI Firestore API"}
 
 # attach routers
 app.include_router(routes_router)
