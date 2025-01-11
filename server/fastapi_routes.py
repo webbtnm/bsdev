@@ -2,10 +2,19 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from bson import ObjectId
-from db.mongo import db
+from db.firestore import db
 from server.fastapi_auth import get_current_user, oauth2_scheme, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta
 import logging
+from google.cloud.firestore import AsyncClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Use credentials from the .env file
+credentials_path = os.getenv("FIRESTORE_CREDENTIALS")
+firestore_client = AsyncClient.from_service_account_json(credentials_path)
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -35,12 +44,14 @@ class UserOut(BaseModel):
     telegram_contact: str | None
 
 @router.get("/api/books")
-async def get_books():
+def get_books():
     books_list = []
-    async for b in db.books.find():
+    books_ref = db.collection("books")
+    for doc in books_ref.stream():
+        b = doc.to_dict()
         books_list.append({
-            "id": str(b["_id"]),
-            "ownerId": str(b["ownerId"]) if "ownerId" in b else None,
+            "id": doc.id,
+            "ownerId": b.get("ownerId"),
             "title": b["title"],
             "author": b["author"],
             "description": b.get("description", "")
@@ -48,100 +59,115 @@ async def get_books():
     return books_list
 
 @router.post("/api/books")
-async def create_book(book: Book, current_user: dict = Depends(get_current_user)):
+def create_book(book: Book, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
     new_book = {**book.dict(), "ownerId": current_user["_id"]}
-    result = await db.books.insert_one(new_book)
-    return {"id": str(result.inserted_id), **new_book}
+    books_ref = db.collection("books")
+    result = books_ref.add(new_book)
+    document_ref = result[1]  # Extract the document reference
+    return {"id": document_ref.id, **new_book}
 
 @router.delete("/api/books/{book_id}")
-async def delete_book(book_id: str):
-    res = await db.books.delete_one({"_id": ObjectId(book_id)})
-    if res.deleted_count == 0:
+def delete_book(book_id: str):
+    book_ref = db.collection("books").document(book_id)
+    book = book_ref.get()
+    if not book.exists:
         raise HTTPException(status_code=404, detail="Book not found.")
+    book_ref.delete()
     return {"message": "Book deleted"}
 
 @router.post("/api/shelves")
-async def create_shelf(shelf: Shelf, current_user: dict = Depends(get_current_user)):
+def create_shelf(shelf: Shelf, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
     new_shelf = {**shelf.dict(), "ownerId": current_user["_id"]}
-    result = await db.shelves.insert_one(new_shelf)
-    return {"id": str(result.inserted_id), **new_shelf}
+    shelves_ref = db.collection("shelves")
+    result = shelves_ref.add(new_shelf)
+    document_ref = result[1]  # Extract the document reference
+    return {"id": document_ref.id, **new_shelf}
 
 @router.get("/api/shelves/{shelf_id}")
-async def get_shelf(shelf_id: str, current_user: dict = Depends(get_current_user)):
+def get_shelf(shelf_id: str, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-    shelf = await db.shelves.find_one({"_id": ObjectId(shelf_id)})
-    if not shelf:
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
         raise HTTPException(status_code=404, detail="Shelf not found.")
-    if not shelf["public"] and shelf["ownerId"] != current_user["_id"]:
+    shelf_data = shelf.to_dict()
+    if not shelf_data["public"] and shelf_data["ownerId"] != current_user["_id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
     return {
-        "id": str(shelf["_id"]),
-        "name": shelf["name"],
-        "description": shelf.get("description", ""),
-        "public": shelf["public"],
-        "ownerId": str(shelf["ownerId"])
+        "id": shelf.id,
+        "name": shelf_data["name"],
+        "description": shelf_data.get("description", ""),
+        "public": shelf_data["public"],
+        "ownerId": shelf_data["ownerId"]
     }
 
 @router.post("/api/shelves/{shelf_id}/members")
-async def add_shelf_member(shelf_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
+def add_shelf_member(shelf_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-    shelf = await db.shelves.find_one({"_id": ObjectId(shelf_id)})
-    if not shelf:
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
         raise HTTPException(status_code=404, detail="Shelf not found.")
-    if shelf["ownerId"] != current_user["_id"]:
+    shelf_data = shelf.to_dict()
+    if shelf_data["ownerId"] != current_user["_id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
-    new_member = {"shelfId": ObjectId(shelf_id), "userId": ObjectId(user_id)}
-    result = await db.shelf_members.insert_one(new_member)
-    return {"id": str(result.inserted_id), **new_member}
+    new_member = {"shelfId": shelf_id, "userId": user_id}
+    members_ref = db.collection("shelf_members")
+    result = members_ref.add(new_member)
+    return {"id": result.id, **new_member}
 
 @router.get("/api/shelves/{shelf_id}/members")
-async def get_shelf_members(shelf_id: str, current_user: dict = Depends(get_current_user)):
+def get_shelf_members(shelf_id: str, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-    shelf = await db.shelves.find_one({"_id": ObjectId(shelf_id)})
-    if not shelf:
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
         raise HTTPException(status_code=404, detail="Shelf not found.")
-    if not shelf["public"] and shelf["ownerId"] != current_user["_id"]:
+    shelf_data = shelf.to_dict()
+    if not shelf_data["public"] and shelf_data["ownerId"] != current_user["_id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
-    members = await db.shelf_members.find({"shelfId": ObjectId(shelf_id)}).to_list(length=None)
-    return [{"id": str(member["_id"]), "shelfId": str(member["shelfId"]), "userId": str(member["userId"])} for member in members]
+    members_ref = db.collection("shelf_members")
+    members = members_ref.where("shelfId", "==", shelf_id).stream()
+    return [{"id": member.id, "shelfId": member.to_dict()["shelfId"], "userId": member.to_dict()["userId"]} for member in members]
 
 @router.delete("/api/shelves/{shelf_id}/members/{member_id}")
-async def delete_shelf_member(shelf_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
+def delete_shelf_member(shelf_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-    shelf = await db.shelves.find_one({"_id": ObjectId(shelf_id)})
-    if not shelf:
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
         raise HTTPException(status_code=404, detail="Shelf not found.")
-    if shelf["ownerId"] != current_user["_id"]:
+    shelf_data = shelf.to_dict()
+    if shelf_data["ownerId"] != current_user["_id"]:
         raise HTTPException(status_code=403, detail="Not authorized.")
-    result = await db.shelf_members.delete_one({"shelfId": ObjectId(shelf_id), "userId": ObjectId(member_id)})
-    if result.deleted_count == 0:
+    member_ref = db.collection("shelf_members").document(member_id)
+    member = member_ref.get()
+    if not member.exists:
         raise HTTPException(status_code=404, detail="Member not found.")
+    member_ref.delete()
     return {"message": "Member deleted"}
 
 @router.patch("/api/user/profile")
-async def update_user_profile(profile: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
+def update_user_profile(profile: UserProfileUpdate, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
     update_data = {k: v for k, v in profile.dict().items() if v is not None}
-    result = await db.users.update_one({"_id": ObjectId(current_user["_id"])}, {"$set": update_data})
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="User not found.")
+    user_ref = db.collection("users").document(current_user["_id"])
+    user_ref.update(update_data)
     return {"message": "Profile updated"}
 
 @router.get("/api/user/profile", response_model=UserOut)
-async def get_user_profile(request: Request, current_user: dict = Depends(get_current_user)):
-
+def get_user_profile(request: Request, current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
-
     return {
         "id": str(current_user["_id"]),
         "username": current_user["username"],
@@ -154,30 +180,32 @@ async def get_user_profile(request: Request, current_user: dict = Depends(get_cu
 #     raise HTTPException(status_code=400, detail="Use /api/register from fastapi_auth")
 
 @router.get("/api/user/books")
-async def get_user_books(current_user: dict = Depends(get_current_user)):
+def get_user_books(current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
     logging.info(f"Current user: {current_user}")
     books_list = []
-    async for b in db.books.find({"ownerId": current_user["_id"]}):
+    books_ref = db.collection("books")
+    for b in books_ref.where("ownerId", "==", current_user["_id"]).stream():
         books_list.append({
-            "id": str(b["_id"]),
-            "title": b["title"],
-            "author": b["author"],
-            "description": b.get("description", "")
+            "id": b.id,
+            "title": b.to_dict()["title"],
+            "author": b.to_dict()["author"],
+            "description": b.to_dict().get("description", "")
         })
     return books_list
 
 @router.get("/api/user/shelves")
-async def get_user_shelves(current_user: dict = Depends(get_current_user)):
+def get_user_shelves(current_user: dict = Depends(get_current_user)):
     if "_id" not in current_user:
         raise HTTPException(status_code=400, detail="Invalid user data.")
     shelves_list = []
-    async for s in db.shelves.find({"ownerId": current_user["_id"]}):
+    shelves_ref = db.collection("shelves")
+    for s in shelves_ref.where("ownerId", "==", current_user["_id"]).stream():
         shelves_list.append({
-            "id": str(s["_id"]),
-            "name": s["name"],
-            "description": s.get("description", ""),
-            "public": s["public"]
+            "id": s.id,
+            "name": s.to_dict()["name"],
+            "description": s.to_dict().get("description", ""),
+            "public": s.to_dict()["public"]
         })
     return shelves_list
