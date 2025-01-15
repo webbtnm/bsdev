@@ -209,3 +209,56 @@ def get_user_shelves(current_user: dict = Depends(get_current_user)):
             "public": s.to_dict()["public"]
         })
     return shelves_list
+
+@router.get("/api/shelves/{shelf_id}/books")
+def get_shelf_books(shelf_id: str, current_user: dict = Depends(get_current_user)):
+    if "_id" not in current_user:
+        raise HTTPException(status_code=400, detail="Invalid user data.")
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
+        raise HTTPException(status_code=404, detail="Shelf not found.")
+    shelf_data = shelf.to_dict()
+    if not shelf_data["public"] and shelf_data["ownerId"] != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    books_ref = db.collection("books")
+    books = books_ref.where("shelfId", "==", shelf_id).stream()
+    return [{"id": book.id, "title": book.to_dict()["title"], "author": book.to_dict()["author"], "description": book.to_dict().get("description", "")} for book in books]
+
+@router.post("/api/shelves/{shelf_id}/books")
+def add_book_to_shelf(shelf_id: str, book: Book, current_user: dict = Depends(get_current_user)):
+    if "_id" not in current_user:
+        raise HTTPException(status_code=400, detail="Invalid user data.")
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
+        raise HTTPException(status_code=404, detail="Shelf not found.")
+    shelf_data = shelf.to_dict()
+    if shelf_data["ownerId"] != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    new_book = {**book.dict(), "shelfId": shelf_id, "ownerId": current_user["_id"]}
+    books_ref = db.collection("books")
+    result = books_ref.add(new_book)
+    document_ref = result[1]  # Extract the document reference
+    return {"id": document_ref.id, **new_book}
+
+@router.delete("/api/shelves/{shelf_id}/books/{book_id}")
+def delete_book_from_shelf(shelf_id: str, book_id: str, current_user: dict = Depends(get_current_user)):
+    if "_id" not in current_user:
+        raise HTTPException(status_code=400, detail="Invalid user data.")
+    shelf_ref = db.collection("shelves").document(shelf_id)
+    shelf = shelf_ref.get()
+    if not shelf.exists:
+        raise HTTPException(status_code=404, detail="Shelf not found.")
+    shelf_data = shelf.to_dict()
+    if shelf_data["ownerId"] != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    book_ref = db.collection("books").document(book_id)
+    book = book_ref.get()
+    if not book.exists:
+        raise HTTPException(status_code=404, detail="Book not found.")
+    book_data = book.to_dict()
+    if book_data.get("shelfId") != shelf_id:
+        raise HTTPException(status_code=400, detail="Book does not belong to this shelf.")
+    book_ref.delete()
+    return {"message": "Book deleted from shelf"}
