@@ -1,35 +1,30 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from server.fastapi_auth import router as auth_router  # Add this import
-from starlette.middleware.base import BaseHTTPMiddleware
-import logging
-from server.user_routes import router as user_router
-from server.shelf_routes import router as shelf_router
-from server.book_routes import router as book_router
+from server.routers import books, users, shelves, books_litres
+from server.fastapi_auth import router as auth_router
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:5173"
-]
-
+# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+# Корневой маршрут
 @app.get("/")
-def root_route():
-    return {"message": "FastAPI Firestore API"}
+def read_root():
+    return {"message": "Welcome to WebShelf API"}
 
-# attach routers
-app.include_router(user_router)
-app.include_router(shelf_router)
-app.include_router(book_router)
+# Включаем роутеры
+app.include_router(books.router)
+app.include_router(users.router)
+app.include_router(shelves.router)
+app.include_router(books_litres.router)
 app.include_router(auth_router)  # Include auth router so /api/token and others are available
 
-# you'd run it with: uvicorn server.fastapi_app:app --reload
+# Запуск приложения
+# uvicorn server.fastapi_app:app --reload

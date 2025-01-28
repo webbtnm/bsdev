@@ -9,3 +9,6 @@ python-multipart
 python-dotenv
 python-jose
 google-cloud-firestore
+beautifulsoup4==4.12.2
+httpx==0.25.2
+lxml==4.9.3

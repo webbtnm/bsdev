@@ -15,7 +15,7 @@ from google.cloud import firestore
 
 app = FastAPI()
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = "your_secret_key"  # Ensure this is properly set
