@@ -71,7 +71,7 @@ async def parse_book_details(html: str) -> BookDetails:
 
 async def get_book_details(url: str) -> Optional[BookDetails]:
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
             response = await client.get(url)
             response.raise_for_status()
             return await parse_book_details(response.text)
